@@ -28,11 +28,59 @@
             pointer-events: none;
             display: none;
         }
+        #editButton {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.5);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-family: Arial, sans-serif;
+            font-size: 16px;
+        }
+        #editForm {
+            position: absolute;
+            top: 50px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: Arial, sans-serif;
+            display: none;
+        }
+        #editForm input {
+            margin: 5px;
+            width: 100px;
+        }
+        #editForm button {
+            margin: 5px;
+            padding: 5px 10px;
+            background: #444;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        #error {
+            color: red;
+            font-size: 12px;
+        }
     </style>
 </head>
 <body>
     <div id="info"></div>
     <div id="tooltip"></div>
+    <button id="editButton">Edit Portfolio</button>
+    <div id="editForm">
+        <div id="stockInputs"></div>
+        <div id="error"></div>
+        <button id="saveButton">Save</button>
+        <button id="cancelButton">Cancel</button>
+    </div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
     <script src="https://unpkg.com/three@0.134.0/examples/js/controls/OrbitControls.js"></script>
     <script>
@@ -72,8 +120,8 @@
         const starField = new THREE.Points(starGeometry, starMaterial);
         scene.add(starField);
 
-        // Stock data
-        const stocks = [
+        // Stock data (changed to let for modifiability)
+        let stocks = [
             { ticker: 'HOOD', allocation: 0.50, color: 0x00ff00 },
             { ticker: 'RKLB', allocation: 0.20, color: 0x0000ff },
             { ticker: 'PLTR', allocation: 0.20, color: 0xff0000 },
@@ -82,36 +130,47 @@
         ];
 
         // Create planets
-        const planets = [];
+        let planets = [];
         const maxRadius = 2;
         const orbits = [];
         const orbitSpeeds = [0.01, 0.008, 0.006, 0.004, 0.002];
         const orbitRadii = [5, 7, 9, 11, 13];
 
-        stocks.forEach((stock, index) => {
-            const radius = maxRadius * (stock.allocation / 0.5);
-            const geometry = new THREE.SphereGeometry(radius, 32, 32);
-            const material = new THREE.MeshStandardMaterial({ color: stock.color });
-            const sphere = new THREE.Mesh(geometry, material);
-            sphere.position.x = orbitRadii[index];
-            sphere.userData = { ticker: stock.ticker, allocation: stock.allocation }; // Store data for hover
-            scene.add(sphere);
-            planets.push({ mesh: sphere, angle: Math.random() * Math.PI * 2, speed: orbitSpeeds[index], radius: orbitRadii[index], ticker: stock.ticker });
+        function createPlanets() {
+            // Clear existing planets and orbits
+            planets.forEach(planet => scene.remove(planet.mesh));
+            orbits.forEach(orbit => scene.remove(orbit));
+            planets = [];
+            orbits.length = 0;
 
-            // Create orbit path
-            const orbitGeometry = new THREE.BufferGeometry();
-            const orbitMaterial = new THREE.LineBasicMaterial({ color: 0x444444 });
-            const points = [];
-            const segments = 100;
-            for (let i = 0; i <= segments; i++) {
-                const theta = (i / segments) * Math.PI * 2;
-                points.push(new THREE.Vector3(Math.cos(theta) * orbitRadii[index], Math.sin(theta) * orbitRadii[index], 0));
-            }
-            orbitGeometry.setFromPoints(points);
-            const orbit = new THREE.Line(orbitGeometry, orbitMaterial);
-            scene.add(orbit);
-            orbits.push(orbit);
-        });
+            // Create new planets
+            stocks.forEach((stock, index) => {
+                const radius = maxRadius * (stock.allocation / 0.5);
+                const geometry = new THREE.SphereGeometry(radius, 32, 32);
+                const material = new THREE.MeshStandardMaterial({ color: stock.color });
+                const sphere = new THREE.Mesh(geometry, material);
+                sphere.position.x = orbitRadii[index];
+                sphere.userData = { ticker: stock.ticker, allocation: stock.allocation };
+                scene.add(sphere);
+                planets.push({ mesh: sphere, angle: Math.random() * Math.PI * 2, speed: orbitSpeeds[index], radius: orbitRadii[index], ticker: stock.ticker });
+
+                // Create orbit path
+                const orbitGeometry = new THREE.BufferGeometry();
+                const orbitMaterial = new THREE.LineBasicMaterial({ color: 0x444444 });
+                const points = [];
+                const segments = 100;
+                for (let i = 0; i <= segments; i++) {
+                    const theta = (i / segments) * Math.PI * 2;
+                    points.push(new THREE.Vector3(Math.cos(theta) * orbitRadii[index], Math.sin(theta) * orbitRadii[index], 0));
+                }
+                orbitGeometry.setFromPoints(points);
+                const orbit = new THREE.Line(orbitGeometry, orbitMaterial);
+                scene.add(orbit);
+                orbits.push(orbit);
+            });
+        }
+
+        createPlanets();
 
         // Create rocket
         const rocketGeometry = new THREE.ConeGeometry(0.2, 0.6, 32);
@@ -131,12 +190,12 @@
             firePositions[i * 3 + 2] = 0;
             fireVelocities[i * 3] = (Math.random() - 0.5) * 0.1;
             fireVelocities[i * 3 + 1] = (Math.random() - 0.5) * 0.1;
-            fireVelocities[i * 3 + 2] = -Math.random() * 0.2 - 0.1; // Backward motion
-            fireLifetimes[i] = Math.random() * 20 + 10; // Lifetime in frames
+            fireVelocities[i * 3 + 2] = -Math.random() * 0.2 - 0.1;
+            fireLifetimes[i] = Math.random() * 20 + 10;
         }
         fireGeometry.setAttribute('position', new THREE.BufferAttribute(firePositions, 3));
         const fireMaterial = new THREE.PointsMaterial({ 
-            color: 0xff4500, // Orange-red flame color
+            color: 0xff4500,
             size: 0.05,
             transparent: true,
             opacity: 0.8
@@ -156,9 +215,73 @@
 
         // Info display
         const infoDiv = document.getElementById('info');
-        infoDiv.innerHTML = stocks.map(stock => 
-            `<span style="color: #${stock.color.toString(16).padStart(6, '0')}">${stock.ticker}: ${stock.allocation * 100}%</span>`
-        ).join('<br>');
+        function updateInfo() {
+            infoDiv.innerHTML = stocks.map(stock => 
+                `<span style="color: #${stock.color.toString(16).padStart(6, '0')}">${stock.ticker}: ${(stock.allocation * 100).toFixed(0)}%</span>`
+            ).join('<br>');
+        }
+        updateInfo();
+
+        // Edit form
+        const editButton = document.getElementById('editButton');
+        const editForm = document.getElementById('editForm');
+        const stockInputs = document.getElementById('stockInputs');
+        const saveButton = document.getElementById('saveButton');
+        const cancelButton = document.getElementById('cancelButton');
+        const errorDiv = document.getElementById('error');
+
+        function generateEditForm() {
+            stockInputs.innerHTML = stocks.map((stock, index) => `
+                <div>
+                    <input type="text" id="ticker${index}" value="${stock.ticker}" placeholder="Ticker">
+                    <input type="number" id="allocation${index}" value="${(stock.allocation * 100).toFixed(0)}" placeholder="Allocation (%)" min="0" max="100" step="1">
+                </div>
+            `).join('');
+        }
+
+        editButton.addEventListener('click', () => {
+            generateEditForm();
+            editForm.style.display = 'block';
+            editButton.style.display = 'none';
+        });
+
+        cancelButton.addEventListener('click', () => {
+            editForm.style.display = 'none';
+            editButton.style.display = 'block';
+            errorDiv.innerHTML = '';
+        });
+
+        saveButton.addEventListener('click', () => {
+            const newStocks = [];
+            let totalAllocation = 0;
+            let valid = true;
+
+            stocks.forEach((_, index) => {
+                const ticker = document.getElementById(`ticker${index}`).value.trim().toUpperCase();
+                const allocation = parseFloat(document.getElementById(`allocation${index}`).value) / 100;
+                if (!ticker || isNaN(allocation) || allocation < 0) {
+                    valid = false;
+                    errorDiv.innerHTML = 'Please enter valid ticker and allocation values.';
+                    return;
+                }
+                newStocks.push({ ticker, allocation, color: stocks[index].color });
+                totalAllocation += allocation;
+            });
+
+            if (!valid) return;
+
+            if (Math.abs(totalAllocation - 1) > 0.01) {
+                errorDiv.innerHTML = `Total allocation must be 100% (current: ${(totalAllocation * 100).toFixed(0)}%)`;
+                return;
+            }
+
+            stocks = newStocks;
+            createPlanets();
+            updateInfo();
+            editForm.style.display = 'none';
+            editButton.style.display = 'block';
+            errorDiv.innerHTML = '';
+        });
 
         // Hover detection
         const raycaster = new THREE.Raycaster();
@@ -166,14 +289,10 @@
         const tooltip = document.getElementById('tooltip');
 
         function onMouseMove(event) {
-            // Calculate mouse position in normalized device coordinates (-1 to +1)
             mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
             mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-
-            // Update raycaster
             raycaster.setFromCamera(mouse, camera);
             const intersects = raycaster.intersectObjects(planets.map(p => p.mesh));
-
             if (intersects.length > 0) {
                 const planet = intersects[0].object;
                 tooltip.style.display = 'block';
@@ -197,6 +316,7 @@
                 planet.mesh.position.x = Math.cos(planet.angle) * planet.radius;
                 planet.mesh.position.y = Math.sin(planet.angle) * planet.radius;
                 planet.mesh.rotation.y += 0.01;
+                planet.mesh.userData = { ticker: planet.ticker, allocation: stocks[planets.indexOf(planet)].allocation };
             });
 
             // Update rocket position
@@ -235,8 +355,7 @@
                     firePos[i * 3 + 2] += fireVelocities[i * 3 + 2];
                     fireLifetimes[i]--;
                 } else {
-                    // Reset particle at rocket's base (wide part of cone)
-                    const offset = new THREE.Vector3(0, -0.3, 0); // Base of cone
+                    const offset = new THREE.Vector3(0, -0.3, 0);
                     const worldOffset = offset.clone().applyQuaternion(rocket.quaternion).add(rocket.position);
                     firePos[i * 3] = worldOffset.x;
                     firePos[i * 3 + 1] = worldOffset.y;
@@ -249,9 +368,7 @@
             }
             fireParticles.geometry.attributes.position.needsUpdate = true;
 
-            // Update controls
             controls.update();
-
             renderer.render(scene, camera);
         }
 
