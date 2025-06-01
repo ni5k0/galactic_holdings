@@ -69,6 +69,21 @@
             color: red;
             font-size: 12px;
         }
+        #newStockSection {
+            margin-top: 10px;
+            border-top: 1px solid #666;
+            padding-top: 10px;
+        }
+        .stock-row {
+            display: flex;
+            align-items: center;
+        }
+        .stock-row input {
+            width: 80px;
+        }
+        .stock-row button {
+            background: #ff4444;
+        }
     </style>
 </head>
 <body>
@@ -77,6 +92,13 @@
     <button id="editButton">Edit Portfolio</button>
     <div id="editForm">
         <div id="stockInputs"></div>
+        <div id="newStockSection">
+            <div>
+                <input type="text" id="newTicker" placeholder="New Ticker">
+                <input type="number" id="newAllocation" placeholder="Allocation (%)" min="0" max="100" step="1">
+            </div>
+            <button id="addStockButton">Add Stock</button>
+        </div>
         <div id="error"></div>
         <button id="saveButton">Save</button>
         <button id="cancelButton">Cancel</button>
@@ -128,7 +150,7 @@
             { ticker: 'SBC', allocation: 0.19, color: 0x0000ff },
             { ticker: '$PLTR', allocation: 0.15, color: 0xff0000 },
             { ticker: '$RKLB', allocation: 0.11, color: 0xffff00 },
-            { ticker: '$NVDA', allocation: 0.1, color: 0x00ffff },
+            { ticker: '$NVDA', allocation: 0.01, color: 0x00ffff },
             { ticker: 'others', allocation: 0.03, color: 0x00ff00 }
         ];
 
@@ -148,8 +170,8 @@
             textMeshes = [];
 
             // Dynamic orbit radii and speeds based on number of stocks
-            const orbitRadii = stocks.map((_, i) => 5 + i * 2); // 5, 7, 9, ...
-            const orbitSpeeds = stocks.map((_, i) => 0.01 / (i + 1)); // 0.01, 0.005, ...
+            const orbitRadii = stocks.map((_, i) => 5 + i * 2);
+            const orbitSpeeds = stocks.map((_, i) => 0.01 / (i + 1));
 
             // Load font for text
             const fontLoader = new THREE.FontLoader();
@@ -256,23 +278,53 @@
         const editButton = document.getElementById('editButton');
         const editForm = document.getElementById('editForm');
         const stockInputs = document.getElementById('stockInputs');
+        const addStockButton = document.getElementById('addStockButton');
         const saveButton = document.getElementById('saveButton');
         const cancelButton = document.getElementById('cancelButton');
         const errorDiv = document.getElementById('error');
 
         function generateEditForm() {
             stockInputs.innerHTML = stocks.map((stock, index) => `
-                <div>
+                <div class="stock-row" data-index="${index}">
                     <input type="text" id="ticker${index}" value="${stock.ticker}" placeholder="Ticker">
                     <input type="number" id="allocation${index}" value="${(stock.allocation * 100).toFixed(0)}" placeholder="Allocation (%)" min="0" max="100" step="1">
+                    <button class="deleteStockButton" data-index="${index}" ${stocks.length <= 1 ? 'disabled' : ''}>Delete</button>
                 </div>
             `).join('');
+
+            // Add event listeners for delete buttons
+            document.querySelectorAll('.deleteStockButton').forEach(button => {
+                button.addEventListener('click', () => {
+                    if (stocks.length <= 1) {
+                        errorDiv.innerHTML = 'Cannot delete the last stock.';
+                        return;
+                    }
+                    const index = parseInt(button.getAttribute('data-index'));
+                    stocks.splice(index, 1);
+                    generateEditForm();
+                    updateInfo();
+                });
+            });
         }
 
         editButton.addEventListener('click', () => {
             generateEditForm();
             editForm.style.display = 'block';
             editButton.style.display = 'none';
+        });
+
+        addStockButton.addEventListener('click', () => {
+            const newTicker = document.getElementById('newTicker').value.trim().toUpperCase();
+            const newAllocation = parseFloat(document.getElementById('newAllocation').value) / 100;
+            if (!newTicker || isNaN(newAllocation) || newAllocation <= 0) {
+                errorDiv.innerHTML = 'Please enter a valid ticker and positive allocation for the new stock.';
+                return;
+            }
+            stocks.push({ ticker: newTicker, allocation: newAllocation, color: 0xaaaaaa });
+            document.getElementById('newTicker').value = '';
+            document.getElementById('newAllocation').value = '';
+            generateEditForm();
+            updateInfo();
         });
 
         cancelButton.addEventListener('click', () => {
@@ -286,15 +338,16 @@
             let totalAllocation = 0;
             let valid = true;
 
-            stocks.forEach((_, index) => {
+            document.querySelectorAll('.stock-row').forEach(row => {
+                const index = row.getAttribute('data-index');
                 const ticker = document.getElementById(`ticker${index}`).value.trim().toUpperCase();
                 const allocation = parseFloat(document.getElementById(`allocation${index}`).value) / 100;
-                if (!ticker || isNaN(allocation) || allocation < 0) {
+                if (!ticker || isNaN(allocation) || allocation <= 0) {
                     valid = false;
-                    errorDiv.innerHTML = 'Please enter valid ticker and allocation values.';
+                    errorDiv.innerHTML = 'Please enter valid ticker and positive allocation values.';
                     return;
                 }
-                newStocks.push({ ticker, allocation, color: stocks[index].color });
+                newStocks.push({ ticker, allocation, color: stocks[index] ? stocks[index].color : 0xaaaaaa });
                 totalAllocation += allocation;
             });
 
@@ -351,9 +404,8 @@
                 // Update text position if it exists
                 if (textMeshes[index]) {
                     const radius = maxRadius * (stocks[index].allocation / 0.5);
-                    textMeshes[index].position.x = planet.mesh.position.x - 0.5; // Offset to center
+                    textMeshes[index].position.x = planet.mesh.position.x - 0.5;
                     textMeshes[index].position.y = planet.mesh.position.y + radius + 0.5;
-                    // Make text always face the camera
                     textMeshes[index].quaternion.copy(camera.quaternion);
                 }
             });
