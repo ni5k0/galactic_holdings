@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Portfolio Solar System with Rocket</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-family: Arial, sans-serif;
+            font-size: 16px;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div id="info"></div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+    <script src="https://unpkg.com/three@0.134.0/examples/js/controls/OrbitControls.js"></script>
+    <script>
+        // Scene setup
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Mouse controls
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.screenSpacePanning = true;
+        controls.minDistance = 5;
+        controls.maxDistance = 50;
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0x404040);
+        scene.add(ambientLight);
+        const pointLight = new THREE.PointLight(0xffffff, 1, 100);
+        pointLight.position.set(0, 0, 10);
+        scene.add(pointLight);
+
+        // Stock data
+        const stocks = [
+            { ticker: 'HOOD', allocation: 0.50, color: 0x00ff00 },
+            { ticker: 'RKLB', allocation: 0.20, color: 0x0000ff },
+            { ticker: 'PLTR', allocation: 0.20, color: 0xff0000 },
+            { ticker: 'NVDA', allocation: 0.05, color: 0xffff00 },
+            { ticker: 'NU', allocation: 0.05, color: 0x00ffff }
+        ];
+
+        // Create planets
+        const planets = [];
+        const maxRadius = 2;
+        const orbits = [];
+        const orbitSpeeds = [0.01, 0.008, 0.006, 0.004, 0.002];
+        const orbitRadii = [5, 7, 9, 11, 13];
+
+        stocks.forEach((stock, index) => {
+            const radius = maxRadius * (stock.allocation / 0.5);
+            const geometry = new THREE.SphereGeometry(radius, 32, 32);
+            const material = new THREE.MeshStandardMaterial({ color: stock.color });
+            const sphere = new THREE.Mesh(geometry, material);
+            sphere.position.x = orbitRadii[index];
+            scene.add(sphere);
+            planets.push({ mesh: sphere, angle: Math.random() * Math.PI * 2, speed: orbitSpeeds[index], radius: orbitRadii[index], ticker: stock.ticker });
+
+            // Create orbit path
+            const orbitGeometry = new THREE.BufferGeometry();
+            const orbitMaterial = new THREE.LineBasicMaterial({ color: 0x444444 });
+            const points = [];
+            const segments = 100;
+            for (let i = 0; i <= segments; i++) {
+                const theta = (i / segments) * Math.PI * 2;
+                points.push(new THREE.Vector3(Math.cos(theta) * orbitRadii[index], Math.sin(theta) * orbitRadii[index], 0));
+            }
+            orbitGeometry.setFromPoints(points);
+            const orbit = new THREE.Line(orbitGeometry, orbitMaterial);
+            scene.add(orbit);
+            orbits.push(orbit);
+        });
+
+        // Create rocket
+        const rocketGeometry = new THREE.ConeGeometry(0.2, 0.6, 32);
+        const rocketMaterial = new THREE.MeshStandardMaterial({ color: 0xffffff });
+        const rocket = new THREE.Mesh(rocketGeometry, rocketMaterial);
+        scene.add(rocket);
+
+        // Rocket animation variables
+        let currentPlanetIndex = 0;
+        let nextPlanetIndex = 1;
+        let rocketLerpT = 0;
+        const travelDuration = 200; // Frames to travel between planets
+        let travelFrame = 0;
+
+        // Camera position
+        camera.position.z = 20;
+
+        // Info display
+        const infoDiv = document.getElementById('info');
+        infoDiv.innerHTML = stocks.map(stock => 
+            `<span style="color: #${stock.color.toString(16).padStart(6, '0')}">${stock.ticker}: ${stock.allocation * 100}%</span>`
+        ).join('<br>');
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Update planet positions
+            planets.forEach(planet => {
+                planet.angle += planet.speed;
+                planet.mesh.position.x = Math.cos(planet.angle) * planet.radius;
+                planet.mesh.position.y = Math.sin(planet.angle) * planet.radius;
+                planet.mesh.rotation.y += 0.01;
+            });
+
+            // Update rocket position
+            if (travelFrame < travelDuration) {
+                rocketLerpT = travelFrame / travelDuration;
+                const currentPos = planets[currentPlanetIndex].mesh.position;
+                const nextPos = planets[nextPlanetIndex].mesh.position;
+                rocket.position.lerpVectors(currentPos, nextPos, rocketLerpT);
+
+                // Orient rocket to face travel direction
+                const direction = nextPos.clone().sub(currentPos).normalize();
+                rocket.lookAt(nextPos);
+                rocket.rotateX(Math.PI / 2); // Adjust cone orientation
+
+                travelFrame++;
+            } else {
+                // Move to next planet
+                currentPlanetIndex = nextPlanetIndex;
+                nextPlanetIndex = (nextPlanetIndex + 1) % planets.length;
+                travelFrame = 0;
+                rocketLerpT = 0;
+            }
+
+            // Update controls
+            controls.update();
+
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
