@@ -165,8 +165,8 @@
                     scene.add(sphere);
                     planets.push({ mesh: sphere, angle: Math.random() * Math.PI * 2, speed: orbitSpeeds[index], radius: orbitRadii[index], ticker: stock.ticker });
 
-                    // Create text for the planet
-                    const textGeometry = new THREE.TextGeometry(stock.ticker, {
+                    // Create text for the planet with ticker and percentage
+                    const textGeometry = new THREE.TextGeometry(`${stock.ticker}: ${(stock.allocation * 100).toFixed(0)}%`, {
                         font: font,
                         size: 0.3,
                         height: 0.05
