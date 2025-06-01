@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stock Portfolio Solar System with Rocket</title>
+    <title>Stellar Portfolio</title>
     <style>
         body { margin: 0; overflow: hidden; background: #000; }
         #info {
@@ -45,6 +45,20 @@
         const pointLight = new THREE.PointLight(0xffffff, 1, 100);
         pointLight.position.set(0, 0, 10);
         scene.add(pointLight);
+
+        // Starfield
+        const starCount = 1000;
+        const starGeometry = new THREE.BufferGeometry();
+        const starPositions = new Float32Array(starCount * 3);
+        for (let i = 0; i < starCount * 3; i += 3) {
+            starPositions[i] = (Math.random() - 0.5) * 200;
+            starPositions[i + 1] = (Math.random() - 0.5) * 200;
+            starPositions[i + 2] = (Math.random() - 0.5) * 200;
+        }
+        starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+        const starMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 0.1 });
+        const starField = new THREE.Points(starGeometry, starMaterial);
+        scene.add(starField);
 
         // Stock data
         const stocks = [
@@ -92,11 +106,36 @@
         const rocket = new THREE.Mesh(rocketGeometry, rocketMaterial);
         scene.add(rocket);
 
+        // Create rocket fire (particle system)
+        const fireParticleCount = 50;
+        const fireGeometry = new THREE.BufferGeometry();
+        const firePositions = new Float32Array(fireParticleCount * 3);
+        const fireVelocities = new Float32Array(fireParticleCount * 3);
+        const fireLifetimes = new Float32Array(fireParticleCount);
+        for (let i = 0; i < fireParticleCount; i++) {
+            firePositions[i * 3] = 0;
+            firePositions[i * 3 + 1] = 0;
+            firePositions[i * 3 + 2] = 0;
+            fireVelocities[i * 3] = (Math.random() - 0.5) * 0.1;
+            fireVelocities[i * 3 + 1] = (Math.random() - 0.5) * 0.1;
+            fireVelocities[i * 3 + 2] = -Math.random() * 0.2 - 0.1; // Backward motion
+            fireLifetimes[i] = Math.random() * 20 + 10; // Lifetime in frames
+        }
+        fireGeometry.setAttribute('position', new THREE.BufferAttribute(firePositions, 3));
+        const fireMaterial = new THREE.PointsMaterial({ 
+            color: 0xff4500, // Orange-red flame color
+            size: 0.05,
+            transparent: true,
+            opacity: 0.8
+        });
+        const fireParticles = new THREE.Points(fireGeometry, fireMaterial);
+        scene.add(fireParticles);
+
         // Rocket animation variables
         let currentPlanetIndex = 0;
         let nextPlanetIndex = 1;
         let rocketLerpT = 0;
-        const travelDuration = 200; // Frames to travel between planets
+        const travelDuration = 200;
         let travelFrame = 0;
 
         // Camera position
@@ -126,20 +165,49 @@
                 const currentPos = planets[currentPlanetIndex].mesh.position;
                 const nextPos = planets[nextPlanetIndex].mesh.position;
                 rocket.position.lerpVectors(currentPos, nextPos, rocketLerpT);
-
-                // Orient rocket to face travel direction
                 const direction = nextPos.clone().sub(currentPos).normalize();
                 rocket.lookAt(nextPos);
-                rocket.rotateX(Math.PI / 2); // Adjust cone orientation
-
+                rocket.rotateX(Math.PI / 2);
                 travelFrame++;
             } else {
-                // Move to next planet
                 currentPlanetIndex = nextPlanetIndex;
                 nextPlanetIndex = (nextPlanetIndex + 1) % planets.length;
                 travelFrame = 0;
                 rocketLerpT = 0;
             }
+
+            // Update starfield
+            const starPositions = starField.geometry.attributes.position.array;
+            for (let i = 0; i < starCount * 3; i += 3) {
+                starPositions[i + 2] -= 0.05;
+                if (starPositions[i + 2] < -100) {
+                    starPositions[i + 2] += 200;
+                }
+            }
+            starField.geometry.attributes.position.needsUpdate = true;
+
+            // Update fire particles
+            const firePos = fireParticles.geometry.attributes.position.array;
+            for (let i = 0; i < fireParticleCount; i++) {
+                if (fireLifetimes[i] > 0 && travelFrame < travelDuration) {
+                    firePos[i * 3] += fireVelocities[i * 3];
+                    firePos[i * 3 + 1] += fireVelocities[i * 3 + 1];
+                    firePos[i * 3 + 2] += fireVelocities[i * 3 + 2];
+                    fireLifetimes[i]--;
+                } else {
+                    // Reset particle at rocket's base (wide part of cone)
+                    const offset = new THREE.Vector3(0, -0.3, 0); // Base of cone
+                    const worldOffset = offset.clone().applyQuaternion(rocket.quaternion).add(rocket.position);
+                    firePos[i * 3] = worldOffset.x;
+                    firePos[i * 3 + 1] = worldOffset.y;
+                    firePos[i * 3 + 2] = worldOffset.z;
+                    fireVelocities[i * 3] = (Math.random() - 0.5) * 0.1;
+                    fireVelocities[i * 3 + 1] = (Math.random() - 0.5) * 0.1;
+                    fireVelocities[i * 3 + 2] = -Math.random() * 0.2 - 0.1;
+                    fireLifetimes[i] = Math.random() * 20 + 10;
+                }
+            }
+            fireParticles.geometry.attributes.position.needsUpdate = true;
 
             // Update controls
             controls.update();
